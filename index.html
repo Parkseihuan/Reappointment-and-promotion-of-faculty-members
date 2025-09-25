@@ -441,8 +441,8 @@
 
         <div class="file-upload" onclick="document.getElementById('fileInput').click()">
             <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="loadExcelFile(event)">
-            <div class="upload-text">📊 엑셀 파일 업로드</div>
-            <div class="upload-subtext">교원현황.xlsx 파일을 드래그하거나 클릭하여 업로드하세요</div>
+            <div class="upload-text">📊 교원현황 엑셀 파일 업로드</div>
+            <div class="upload-subtext">교원현황_샘플데이터.xls 또는 .xlsx 파일을 드래그하거나 클릭하여 업로드하세요</div>
         </div>
 
         <div class="stats-grid">
@@ -584,6 +584,25 @@
             return diffMonths;
         }
 
+        // 헤더명 정규화 함수 (개행문자 처리)
+        function getTeacherValue(teacher, fieldName) {
+            // 여러 가능한 헤더명 형식을 시도
+            const possibleKeys = [
+                fieldName,
+                fieldName.replace(/\r?\n/g, ''),
+                fieldName.replace(/\r?\n/g, '\r\n'),
+                fieldName.replace(/\r?\n/g, '\n')
+            ];
+            
+            for (const key of possibleKeys) {
+                if (teacher[key] !== undefined && teacher[key] !== null) {
+                    return teacher[key];
+                }
+            }
+            
+            return null;
+        }
+
         // 재계약 상태 판정
         function getRenewalStatus(endDate) {
             if (!endDate) return 'normal';
@@ -597,7 +616,7 @@
         // 승진 대상 판정
         function isPromotionCandidate(teacher) {
             const rank = teacher['직급'];
-            const firstAppointment = parseDate(teacher['전임교원\r\n최초임용일'] || teacher['전임교원최초임용일']);
+            const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
             const currentDate = new Date();
             
             if (!firstAppointment) return null;
@@ -631,7 +650,7 @@
             return null;
         }
 
-        // 엑셀 파일 로드
+        // 엑셀 파일 로드 (새로운 raw data 형식 지원)
         async function loadExcelFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -640,11 +659,55 @@
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
+                    const workbook = XLSX.read(data, {
+                        type: 'array',
+                        cellStyles: true,
+                        cellFormulas: true,
+                        cellDates: true,
+                        cellNF: true,
+                        sheetStubs: true
+                    });
+                    
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    // raw data 형식 처리: 행 배열로 먼저 변환
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    
+                    // 헤더 찾기 (4번째 행이 헤더)
+                    let headerRowIndex = -1;
+                    let headers = [];
+                    
+                    for (let i = 0; i < rawData.length; i++) {
+                        if (rawData[i] && rawData[i][0] === 'No.' && rawData[i].includes('성명')) {
+                            headerRowIndex = i;
+                            headers = rawData[i];
+                            break;
+                        }
+                    }
+                    
+                    if (headerRowIndex === -1) {
+                        throw new Error('헤더를 찾을 수 없습니다. 파일 형식을 확인해주세요.');
+                    }
+                    
+                    console.log('헤더 위치:', headerRowIndex);
+                    console.log('찾은 헤더:', headers);
+                    
+                    // 실제 데이터 행들만 추출 (헤더 다음 행부터)
+                    const actualDataRows = rawData.slice(headerRowIndex + 1).filter(row => 
+                        row && row.length > 0 && row[0] && typeof row[0] === 'number'
+                    );
+                    
+                    // 데이터를 객체 배열로 변환
+                    const jsonData = actualDataRows.map(row => {
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index];
+                        });
+                        return obj;
+                    });
+                    
+                    console.log('총 데이터 행 수:', jsonData.length);
                     
                     // 재직중인 전임교원만 필터링
                     facultyData = jsonData.filter(teacher => {
@@ -654,10 +717,18 @@
                                position && position.toString().includes('전임교원');
                     });
                     
+                    console.log('재직중인 전임교원 수:', facultyData.length);
+                    
+                    if (facultyData.length === 0) {
+                        alert('재직중인 전임교원 데이터가 없습니다. 파일을 확인해주세요.');
+                        return;
+                    }
+                    
                     filteredData = [...facultyData];
                     updateDashboard();
                     
                 } catch (error) {
+                    console.error('파일 처리 오류:', error);
                     alert('파일 읽기 중 오류가 발생했습니다: ' + error.message);
                 }
             };
@@ -845,7 +916,7 @@
             filteredData.forEach(teacher => {
                 const endDate = parseDate(teacher['재임용종료일']);
                 const status = getRenewalStatus(endDate);
-                const firstAppointment = parseDate(teacher['전임교원\r\n최초임용일'] || teacher['전임교원최초임용일']);
+                const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
                 const renewalStart = parseDate(teacher['재임용시작일']);
                 
                 const row = document.createElement('tr');
