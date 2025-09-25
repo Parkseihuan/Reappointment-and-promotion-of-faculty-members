@@ -643,7 +643,7 @@
                             <th>직급</th>
                             <th>임용일</th>
                             <th>재임용시작일</th>
-                            <th>재임용종료일</th>
+                            <th>종료일</th>
                             <th>상태</th>
                             <th>다음 심사</th>
                         </tr>
@@ -820,29 +820,43 @@
             }
         }
 
-        // 다음 심사 시기 계산 (수정됨)
+        // 종료일 가져오기 (재임용종료일 우선, 없으면 최초임용종료일)
+        function getEndDate(teacher) {
+            const renewalEndDate = parseDate(teacher['재임용종료일']);
+            const initialEndDate = parseDate(getTeacherValue(teacher, '최초임용\n종료일'));
+            
+            return renewalEndDate || initialEndDate;
+        }
+
+        // 다음 심사 시기 계산 (재계약과 승진 구분 표시)
         function getNextReviewInfo(teacher, baseDate = currentBaseDate) {
             const rank = teacher['직급'];
             const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
-            const renewalEndDate = parseDate(teacher['재임용종료일']);
+            const endDate = getEndDate(teacher);
             const retirementDate = parseDate(teacher['정년일자']);
             
             // 정년퇴직 체크
-            if (renewalEndDate && retirementDate && 
-                renewalEndDate.getTime() === retirementDate.getTime()) {
+            if (endDate && retirementDate && 
+                endDate.getTime() === retirementDate.getTime()) {
                 return {
-                    date: retirementDate,
-                    type: '정년퇴직',
-                    daysUntil: getDaysUntil(retirementDate, baseDate)
+                    renewal: null,
+                    promotion: null,
+                    retirement: {
+                        date: retirementDate,
+                        daysUntil: getDaysUntil(retirementDate, baseDate)
+                    }
                 };
             }
             
-            let nextRenewalDate = null;
-            let nextPromotionDate = null;
+            let renewalInfo = null;
+            let promotionInfo = null;
             
-            // 재계약 시기 (재임용종료일 기준)
-            if (renewalEndDate && renewalEndDate > baseDate) {
-                nextRenewalDate = renewalEndDate;
+            // 재계약 시기 (종료일 기준)
+            if (endDate && endDate > baseDate) {
+                renewalInfo = {
+                    date: endDate,
+                    daysUntil: getDaysUntil(endDate, baseDate)
+                };
             }
             
             // 승진 가능 시기 계산
@@ -867,46 +881,29 @@
                 
                 // 승진 날짜를 4월 1일 또는 10월 1일로 조정
                 if (promotionEligibleDate && promotionEligibleDate >= baseDate) {
-                    nextPromotionDate = adjustPromotionDate(promotionEligibleDate);
+                    const adjustedPromotionDate = adjustPromotionDate(promotionEligibleDate);
+                    promotionInfo = {
+                        date: adjustedPromotionDate,
+                        daysUntil: getDaysUntil(adjustedPromotionDate, baseDate)
+                    };
                 }
-            }
-            
-            // 재계약과 승진 중 더 가까운 것 선택
-            let nextDate = null;
-            let reviewType = '';
-            
-            if (nextRenewalDate && nextPromotionDate) {
-                if (nextRenewalDate <= nextPromotionDate) {
-                    nextDate = nextRenewalDate;
-                    reviewType = '재계약';
-                } else {
-                    nextDate = nextPromotionDate;
-                    reviewType = '승진';
-                }
-            } else if (nextRenewalDate) {
-                nextDate = nextRenewalDate;
-                reviewType = '재계약';
-            } else if (nextPromotionDate) {
-                nextDate = nextPromotionDate;
-                reviewType = '승진';
             }
             
             return {
-                date: nextDate,
-                type: reviewType,
-                daysUntil: nextDate ? getDaysUntil(nextDate, baseDate) : null
+                renewal: renewalInfo,
+                promotion: promotionInfo,
+                retirement: null
             };
         }
 
-        // 다음 심사 정보를 텍스트로 포맷 (수정됨)
+        // 다음 심사 정보를 텍스트로 포맷 (재계약/승진 구분)
         function formatNextReview(reviewInfo) {
-            if (!reviewInfo.date) return '-';
+            const parts = [];
             
-            const dateStr = formatDate(reviewInfo.date);
-            const daysUntil = reviewInfo.daysUntil;
-            
-            // 정년퇴직의 경우
-            if (reviewInfo.type === '정년퇴직') {
+            // 정년퇴직
+            if (reviewInfo.retirement) {
+                const dateStr = formatDate(reviewInfo.retirement.date);
+                const daysUntil = reviewInfo.retirement.daysUntil;
                 let timeInfo = '';
                 if (daysUntil !== null) {
                     if (daysUntil < 0) {
@@ -924,25 +921,45 @@
                 return `정년퇴직 예정 ${dateStr}${timeInfo}`;
             }
             
-            // 일반 재계약/승진의 경우
-            let timeInfo = '';
-            if (daysUntil !== null) {
-                if (daysUntil < 0) {
-                    timeInfo = ' (지남)';
-                } else if (daysUntil === 0) {
-                    timeInfo = ' (오늘)';
-                } else if (daysUntil <= 30) {
-                    timeInfo = ` (${daysUntil}일 후)`;
-                } else if (daysUntil <= 365) {
-                    const months = Math.floor(daysUntil / 30);
-                    timeInfo = ` (${months}개월 후)`;
-                } else {
-                    const years = Math.floor(daysUntil / 365);
-                    timeInfo = ` (${years}년 후)`;
+            // 재계약 정보
+            if (reviewInfo.renewal) {
+                const dateStr = formatDate(reviewInfo.renewal.date);
+                const daysUntil = reviewInfo.renewal.daysUntil;
+                let timeInfo = '';
+                if (daysUntil !== null) {
+                    if (daysUntil <= 30) {
+                        timeInfo = ` (${daysUntil}일 후)`;
+                    } else if (daysUntil <= 365) {
+                        const months = Math.floor(daysUntil / 30);
+                        timeInfo = ` (${months}개월 후)`;
+                    } else {
+                        const years = Math.floor(daysUntil / 365);
+                        timeInfo = ` (${years}년 후)`;
+                    }
                 }
+                parts.push(`재계약 ${dateStr}${timeInfo}`);
             }
             
-            return `${reviewInfo.type} ${dateStr}${timeInfo}`;
+            // 승진 정보
+            if (reviewInfo.promotion) {
+                const dateStr = formatDate(reviewInfo.promotion.date);
+                const daysUntil = reviewInfo.promotion.daysUntil;
+                let timeInfo = '';
+                if (daysUntil !== null) {
+                    if (daysUntil <= 30) {
+                        timeInfo = ` (${daysUntil}일 후)`;
+                    } else if (daysUntil <= 365) {
+                        const months = Math.floor(daysUntil / 30);
+                        timeInfo = ` (${months}개월 후)`;
+                    } else {
+                        const years = Math.floor(daysUntil / 365);
+                        timeInfo = ` (${years}년 후)`;
+                    }
+                }
+                parts.push(`승진 ${dateStr}${timeInfo}`);
+            }
+            
+            return parts.length > 0 ? parts.join(' / ') : '-';
         }
 
         // 승진 마감일까지 남은 일수 계산
@@ -1257,7 +1274,7 @@
             }
             
             filteredData.forEach(teacher => {
-                const endDate = parseDate(teacher['재임용종료일']);
+                const endDate = getEndDate(teacher);
                 const status = getRenewalStatus(endDate, currentBaseDate);
                 const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
                 const renewalStart = parseDate(teacher['재임용시작일']);
@@ -1272,11 +1289,12 @@
                     <td>${formatDate(renewalStart)}</td>
                     <td>${formatDate(endDate)}</td>
                     <td><span class="status-badge ${status}">${getStatusText(status)}</span></td>
-                    <td style="font-size: 0.9rem; color: ${
-                        nextReview.type === '정년퇴직' ? '#ffd93d' : 
-                        nextReview.type === '승진' ? '#a8e6cf' : '#b3c7ff'
-                    }; font-weight: 500;">
-                        ${formatNextReview(nextReview)}
+                    <td style="font-size: 0.9rem; font-weight: 500;">
+                        <div style="color: ${
+                            nextReview.retirement ? '#ffd93d' : '#ffffff'
+                        };">
+                            ${formatNextReview(nextReview)}
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
