@@ -61,6 +61,85 @@
             font-size: 1.1rem;
             color: var(--text-secondary);
             animation: fadeInUp 1s ease-out 0.2s both;
+            margin-bottom: 30px;
+        }
+
+        .date-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 30px;
+            animation: fadeInUp 1s ease-out 0.4s both;
+        }
+
+        .date-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .date-selector label {
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        .date-selector input[type="date"] {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+
+        .date-selector input[type="date"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.2);
+        }
+
+        .date-selector input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .today-btn {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .today-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .date-info {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .date-info span {
+            color: var(--accent-color);
+            font-weight: 600;
         }
 
         .stats-grid {
@@ -413,6 +492,21 @@
                 font-size: 2rem;
             }
             
+            .date-control {
+                margin-top: 20px;
+                padding: 20px;
+            }
+            
+            .date-selector {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .date-selector input[type="date"] {
+                min-width: unset;
+                width: 100%;
+            }
+            
             .stats-grid {
                 grid-template-columns: 1fr;
             }
@@ -429,6 +523,10 @@
             .search-box {
                 width: 100%;
             }
+            
+            .filter-buttons {
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -437,6 +535,18 @@
         <div class="header">
             <h1>교원 재계약 및 승진 임용 대시보드</h1>
             <p>Faculty Reappointment & Promotion Management System</p>
+            
+            <!-- 날짜 선택 컨트롤 -->
+            <div class="date-control">
+                <div class="date-selector">
+                    <label for="baseDate">기준 날짜:</label>
+                    <input type="date" id="baseDate" onchange="onBaseDateChange()">
+                    <button class="today-btn" onclick="setToday()">오늘</button>
+                </div>
+                <div class="date-info">
+                    <span id="baseDateDisplay">-</span> 기준
+                </div>
+            </div>
         </div>
 
         <div class="file-upload" onclick="document.getElementById('fileInput').click()">
@@ -531,10 +641,11 @@
                             <th>성명</th>
                             <th>소속</th>
                             <th>직급</th>
-                            <th>최초임용일</th>
+                            <th>임용일</th>
                             <th>재임용시작일</th>
                             <th>재임용종료일</th>
                             <th>상태</th>
+                            <th>다음 심사</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -552,8 +663,50 @@
     <script>
         let facultyData = [];
         let filteredData = [];
+        let currentBaseDate = new Date(); // 기준 날짜 저장
 
-        // 날짜 관련 유틸리티 함수
+        // 페이지 로드시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            setToday();
+        });
+
+        // 오늘 날짜로 설정
+        function setToday() {
+            const today = new Date();
+            currentBaseDate = today;
+            const dateInput = document.getElementById('baseDate');
+            dateInput.value = formatDateForInput(today);
+            updateBaseDateDisplay();
+            if (facultyData.length > 0) {
+                updateDashboard();
+            }
+        }
+
+        // 기준 날짜 변경 핸들러
+        function onBaseDateChange() {
+            const dateInput = document.getElementById('baseDate');
+            if (dateInput.value) {
+                currentBaseDate = new Date(dateInput.value + 'T00:00:00');
+                updateBaseDateDisplay();
+                if (facultyData.length > 0) {
+                    updateDashboard();
+                }
+            }
+        }
+
+        // 기준 날짜 표시 업데이트
+        function updateBaseDateDisplay() {
+            const displayElement = document.getElementById('baseDateDisplay');
+            displayElement.textContent = formatDate(currentBaseDate);
+        }
+
+        // input용 날짜 형식 변환
+        function formatDateForInput(date) {
+            if (!date) return '';
+            return date.toISOString().split('T')[0];
+        }
+
+        // 날짜 관련 유틸리티 함수 (기준 날짜 기반으로 수정)
         function parseDate(dateStr) {
             if (!dateStr) return null;
             const cleanStr = dateStr.toString().replace(/[^\d.]/g, '');
@@ -569,18 +722,16 @@
             return date.toLocaleDateString('ko-KR');
         }
 
-        function getDaysUntil(targetDate) {
+        function getDaysUntil(targetDate, baseDate = currentBaseDate) {
             if (!targetDate) return null;
-            const today = new Date();
-            const diffTime = targetDate - today;
+            const diffTime = targetDate - baseDate;
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         }
 
-        function getMonthsUntil(targetDate) {
+        function getMonthsUntil(targetDate, baseDate = currentBaseDate) {
             if (!targetDate) return null;
-            const today = new Date();
-            const diffMonths = (targetDate.getFullYear() - today.getFullYear()) * 12 + 
-                             (targetDate.getMonth() - today.getMonth());
+            const diffMonths = (targetDate.getFullYear() - baseDate.getFullYear()) * 12 + 
+                             (targetDate.getMonth() - baseDate.getMonth());
             return diffMonths;
         }
 
@@ -603,25 +754,24 @@
             return null;
         }
 
-        // 재계약 상태 판정
-        function getRenewalStatus(endDate) {
+        // 재계약 상태 판정 (기준 날짜 기반)
+        function getRenewalStatus(endDate, baseDate = currentBaseDate) {
             if (!endDate) return 'normal';
-            const monthsUntil = getMonthsUntil(endDate);
+            const monthsUntil = getMonthsUntil(endDate, baseDate);
             
             if (monthsUntil <= 2) return 'danger';
             if (monthsUntil <= 4) return 'warning';
             return 'normal';
         }
 
-        // 승진 대상 판정
-        function isPromotionCandidate(teacher) {
+        // 승진 대상 판정 (기준 날짜 기반)
+        function isPromotionCandidate(teacher, baseDate = currentBaseDate) {
             const rank = teacher['직급'];
             const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
-            const currentDate = new Date();
             
             if (!firstAppointment) return null;
             
-            const yearsOfService = (currentDate - firstAppointment) / (1000 * 60 * 60 * 24 * 365);
+            const yearsOfService = (baseDate - firstAppointment) / (1000 * 60 * 60 * 24 * 365);
             
             // 조교수 -> 부교수 승진 (6년 이상 근무)
             if (rank && rank.includes('조교수') && yearsOfService >= 6) {
@@ -631,6 +781,120 @@
             // 부교수 -> 교수 승진 (7년 이상 근무)
             if (rank && rank.includes('부교수') && !rank.includes('비정년') && yearsOfService >= 7) {
                 return 'associate_to_full';
+            }
+            
+            return null;
+        }
+
+        // 승진 시기 판정 (기준 날짜 기준)
+        function getPromotionPeriod(baseDate = currentBaseDate) {
+            const currentMonth = baseDate.getMonth() + 1;
+            
+            if (currentMonth >= 11 || currentMonth <= 2) {
+                return 'april'; // 4월 승진을 위한 2월 말 마감
+            } else if (currentMonth >= 5 && currentMonth <= 8) {
+                return 'october'; // 10월 승진을 위한 8월 말 마감
+            }
+            
+            return null;
+        }
+
+        // 다음 심사 시기 계산
+        function getNextReviewInfo(teacher, baseDate = currentBaseDate) {
+            const rank = teacher['직급'];
+            const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
+            const renewalEndDate = parseDate(teacher['재임용종료일']);
+            
+            let nextReviewDate = null;
+            let reviewType = '';
+            
+            // 재계약 시기 확인
+            if (renewalEndDate) {
+                nextReviewDate = renewalEndDate;
+                reviewType = '재계약';
+            }
+            
+            // 승진 가능 시기 확인 (승진이 재계약보다 빠르거나 가능한 경우)
+            if (firstAppointment && rank) {
+                let promotionDate = null;
+                
+                // 조교수 -> 부교수 승진 (6년 후)
+                if (rank.includes('조교수') && !rank.includes('비정년')) {
+                    promotionDate = new Date(firstAppointment);
+                    promotionDate.setFullYear(promotionDate.getFullYear() + 6);
+                }
+                // 부교수 -> 교수 승진 (7년 후, 단 부교수 승진일 기준이면 그 날짜부터 7년)
+                else if (rank.includes('부교수') && !rank.includes('비정년')) {
+                    // 현직급승인일이 있으면 그 날짜 기준, 없으면 전임교원최초임용일 기준
+                    const currentRankDate = parseDate(getTeacherValue(teacher, '현직급\n승인일'));
+                    const basePromotionDate = currentRankDate || firstAppointment;
+                    
+                    if (basePromotionDate) {
+                        promotionDate = new Date(basePromotionDate);
+                        promotionDate.setFullYear(promotionDate.getFullYear() + 7);
+                    }
+                }
+                
+                // 승진이 가능하고 기준 날짜 이후인 경우
+                if (promotionDate && promotionDate >= baseDate) {
+                    // 재계약보다 승진이 먼저인 경우 승진 우선
+                    if (!nextReviewDate || promotionDate <= nextReviewDate) {
+                        nextReviewDate = promotionDate;
+                        reviewType = '승진';
+                    }
+                }
+            }
+            
+            return {
+                date: nextReviewDate,
+                type: reviewType,
+                daysUntil: nextReviewDate ? getDaysUntil(nextReviewDate, baseDate) : null
+            };
+        }
+
+        // 다음 심사 정보를 텍스트로 포맷
+        function formatNextReview(reviewInfo) {
+            if (!reviewInfo.date) return '-';
+            
+            const dateStr = formatDate(reviewInfo.date);
+            const daysUntil = reviewInfo.daysUntil;
+            
+            let timeInfo = '';
+            if (daysUntil !== null) {
+                if (daysUntil < 0) {
+                    timeInfo = ' (지남)';
+                } else if (daysUntil === 0) {
+                    timeInfo = ' (오늘)';
+                } else if (daysUntil <= 30) {
+                    timeInfo = ` (${daysUntil}일 후)`;
+                } else if (daysUntil <= 365) {
+                    const months = Math.floor(daysUntil / 30);
+                    timeInfo = ` (${months}개월 후)`;
+                } else {
+                    const years = Math.floor(daysUntil / 365);
+                    timeInfo = ` (${years}년 후)`;
+                }
+            }
+            
+            return `${reviewInfo.type} ${dateStr}${timeInfo}`;
+        }
+
+        // 승진 마감일까지 남은 일수 계산
+        function getDaysUntilPromotionDeadline(baseDate = currentBaseDate) {
+            const currentMonth = baseDate.getMonth() + 1;
+            const currentYear = baseDate.getFullYear();
+            
+            if (currentMonth >= 11 || currentMonth <= 2) {
+                // 4월 승진 - 2월 말 마감
+                const deadline = new Date(currentYear + (currentMonth >= 11 ? 1 : 0), 1, 28); // 2월 28일
+                if (currentMonth <= 2) {
+                    deadline.setFullYear(currentYear);
+                }
+                return getDaysUntil(deadline, baseDate);
+            } else if (currentMonth >= 5 && currentMonth <= 8) {
+                // 10월 승진 - 8월 말 마감
+                const deadline = new Date(currentYear, 7, 31); // 8월 31일
+                return getDaysUntil(deadline, baseDate);
             }
             
             return null;
@@ -744,7 +1008,7 @@
             updateFacultyTable();
         }
 
-        // 통계 업데이트
+        // 통계 업데이트 (기준 날짜 기반)
         function updateStats() {
             const totalCount = facultyData.length;
             let renewalAlerts = 0;
@@ -753,7 +1017,7 @@
 
             facultyData.forEach(teacher => {
                 const endDate = parseDate(teacher['재임용종료일']);
-                const status = getRenewalStatus(endDate);
+                const status = getRenewalStatus(endDate, currentBaseDate);
                 
                 if (status === 'warning') renewalAlerts++;
                 if (status === 'danger') {
@@ -761,7 +1025,7 @@
                     urgentCases++;
                 }
                 
-                if (isPromotionCandidate(teacher)) {
+                if (isPromotionCandidate(teacher, currentBaseDate)) {
                     promotionAlerts++;
                 }
             });
@@ -772,7 +1036,7 @@
             document.getElementById('urgentCases').textContent = urgentCases;
         }
 
-        // 재계약 알림 업데이트
+        // 재계약 알림 업데이트 (기준 날짜 기반)
         function updateRenewalAlerts() {
             const urgentList = document.getElementById('urgentRenewalList');
             const warningList = document.getElementById('warningRenewalList');
@@ -785,7 +1049,7 @@
             
             facultyData.forEach(teacher => {
                 const endDate = parseDate(teacher['재임용종료일']);
-                const status = getRenewalStatus(endDate);
+                const status = getRenewalStatus(endDate, currentBaseDate);
                 
                 if (status === 'danger') {
                     urgentCases.push(teacher);
@@ -800,7 +1064,7 @@
             } else {
                 urgentCases.forEach(teacher => {
                     const endDate = parseDate(teacher['재임용종료일']);
-                    const daysLeft = getDaysUntil(endDate);
+                    const daysLeft = getDaysUntil(endDate, currentBaseDate);
                     
                     const li = document.createElement('li');
                     li.className = 'alert-item';
@@ -821,7 +1085,7 @@
             } else {
                 warningCases.forEach(teacher => {
                     const endDate = parseDate(teacher['재임용종료일']);
-                    const monthsLeft = getMonthsUntil(endDate);
+                    const monthsLeft = getMonthsUntil(endDate, currentBaseDate);
                     
                     const li = document.createElement('li');
                     li.className = 'alert-item';
@@ -837,7 +1101,7 @@
             }
         }
 
-        // 승진 알림 업데이트
+        // 승진 알림 업데이트 (기준 날짜 기반)
         function updatePromotionAlerts() {
             const aprilList = document.getElementById('aprilPromotionList');
             const octoberList = document.getElementById('octoberPromotionList');
@@ -845,59 +1109,72 @@
             aprilList.innerHTML = '';
             octoberList.innerHTML = '';
             
+            const currentPeriod = getPromotionPeriod(currentBaseDate);
+            const promotionDeadlineDays = getDaysUntilPromotionDeadline(currentBaseDate);
+            
+            // 승진 가능한 교원들을 찾기
+            const promotionCandidates = facultyData.filter(teacher => 
+                isPromotionCandidate(teacher, currentBaseDate)
+            );
+            
+            // 4월 승진 대상 (11월-2월 기간)
             const aprilCandidates = [];
             const octoberCandidates = [];
-            const currentPeriod = getPromotionPeriod();
             
-            facultyData.forEach(teacher => {
-                const promotionType = isPromotionCandidate(teacher);
-                if (promotionType) {
-                    if (currentPeriod === 'april') {
-                        aprilCandidates.push(teacher);
-                    } else if (currentPeriod === 'october') {
-                        octoberCandidates.push(teacher);
-                    }
-                }
-            });
-            
-            // 4월 승진 대상
-            if (aprilCandidates.length === 0) {
-                aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
-            } else {
-                aprilCandidates.forEach(teacher => {
-                    const li = document.createElement('li');
-                    li.className = 'alert-item';
-                    li.innerHTML = `
-                        <div class="teacher-info">
-                            <div class="teacher-name">${teacher['성명']}</div>
-                            <div class="teacher-details">${teacher['소속']} • ${teacher['직급']}</div>
-                        </div>
-                        <div class="date-badge">승진 자격</div>
-                    `;
-                    aprilList.appendChild(li);
-                });
+            if (currentPeriod === 'april') {
+                promotionCandidates.forEach(teacher => aprilCandidates.push(teacher));
+            } else if (currentPeriod === 'october') {
+                promotionCandidates.forEach(teacher => octoberCandidates.push(teacher));
             }
             
-            // 10월 승진 대상
-            if (octoberCandidates.length === 0) {
-                octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
+            // 4월 승진 리스트 업데이트
+            if (currentPeriod === 'april') {
+                if (aprilCandidates.length === 0) {
+                    aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
+                } else {
+                    aprilCandidates.forEach(teacher => {
+                        const yearsOfService = Math.floor((currentBaseDate - parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'))) / (1000 * 60 * 60 * 24 * 365));
+                        const li = document.createElement('li');
+                        li.className = 'alert-item';
+                        li.innerHTML = `
+                            <div class="teacher-info">
+                                <div class="teacher-name">${teacher['성명']}</div>
+                                <div class="teacher-details">${teacher['소속']} • ${teacher['직급']} • ${yearsOfService}년 근무</div>
+                            </div>
+                            <div class="date-badge">${promotionDeadlineDays > 0 ? promotionDeadlineDays + '일 남음' : '마감'}</div>
+                        `;
+                        aprilList.appendChild(li);
+                    });
+                }
             } else {
-                octoberCandidates.forEach(teacher => {
-                    const li = document.createElement('li');
-                    li.className = 'alert-item';
-                    li.innerHTML = `
-                        <div class="teacher-info">
-                            <div class="teacher-name">${teacher['성명']}</div>
-                            <div class="teacher-details">${teacher['소속']} • ${teacher['직급']}</div>
-                        </div>
-                        <div class="date-badge">승진 자격</div>
-                    `;
-                    octoberList.appendChild(li);
-                });
+                aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (11월-2월)</li>';
+            }
+            
+            // 10월 승진 리스트 업데이트
+            if (currentPeriod === 'october') {
+                if (octoberCandidates.length === 0) {
+                    octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
+                } else {
+                    octoberCandidates.forEach(teacher => {
+                        const yearsOfService = Math.floor((currentBaseDate - parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'))) / (1000 * 60 * 60 * 24 * 365));
+                        const li = document.createElement('li');
+                        li.className = 'alert-item';
+                        li.innerHTML = `
+                            <div class="teacher-info">
+                                <div class="teacher-name">${teacher['성명']}</div>
+                                <div class="teacher-details">${teacher['소속']} • ${teacher['직급']} • ${yearsOfService}년 근무</div>
+                            </div>
+                            <div class="date-badge">${promotionDeadlineDays > 0 ? promotionDeadlineDays + '일 남음' : '마감'}</div>
+                        `;
+                        octoberList.appendChild(li);
+                    });
+                }
+            } else {
+                octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (5월-8월)</li>';
             }
         }
 
-        // 교원 테이블 업데이트
+        // 교원 테이블 업데이트 (기준 날짜 기반)
         function updateFacultyTable() {
             const tbody = document.querySelector('#facultyTable tbody');
             tbody.innerHTML = '';
@@ -905,7 +1182,7 @@
             if (filteredData.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">
                             검색 결과가 없습니다
                         </td>
                     </tr>
@@ -915,9 +1192,10 @@
             
             filteredData.forEach(teacher => {
                 const endDate = parseDate(teacher['재임용종료일']);
-                const status = getRenewalStatus(endDate);
+                const status = getRenewalStatus(endDate, currentBaseDate);
                 const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
                 const renewalStart = parseDate(teacher['재임용시작일']);
+                const nextReview = getNextReviewInfo(teacher, currentBaseDate);
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -928,6 +1206,9 @@
                     <td>${formatDate(renewalStart)}</td>
                     <td>${formatDate(endDate)}</td>
                     <td><span class="status-badge ${status}">${getStatusText(status)}</span></td>
+                    <td style="font-size: 0.9rem; color: ${nextReview.type === '승진' ? '#00b894' : '#667eea'};">
+                        ${formatNextReview(nextReview)}
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
