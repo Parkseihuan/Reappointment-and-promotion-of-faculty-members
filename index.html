@@ -580,7 +580,7 @@
                 <div class="alert-card danger">
                     <div class="alert-title">
                         <span class="alert-icon danger">!</span>
-                        긴급: 2개월 이내 재계약 종료
+                        긴급: 2개월 이내 재계약 종료 <span id="urgentRenewalCount" style="color: var(--danger-color);"></span>
                     </div>
                     <ul class="alert-list" id="urgentRenewalList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -589,7 +589,7 @@
                 <div class="alert-card warning">
                     <div class="alert-title">
                         <span class="alert-icon warning">⚠</span>
-                        주의: 4개월 이내 재계약 종료
+                        주의: 4개월 이내 재계약 종료 <span id="warningRenewalCount" style="color: var(--warning-color);"></span>
                     </div>
                     <ul class="alert-list" id="warningRenewalList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -604,7 +604,7 @@
                 <div class="alert-card warning">
                     <div class="alert-title">
                         <span class="alert-icon warning">📋</span>
-                        4월 승진 심사 대상 (2월 말 마감)
+                        4월 승진 심사 대상 (2월 말 마감) <span id="aprilPromotionCount" style="color: var(--warning-color);"></span>
                     </div>
                     <ul class="alert-list" id="aprilPromotionList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -613,7 +613,7 @@
                 <div class="alert-card warning">
                     <div class="alert-title">
                         <span class="alert-icon warning">📋</span>
-                        10월 승진 심사 대상 (8월 말 마감)
+                        10월 승진 심사 대상 (8월 말 마감) <span id="octoberPromotionCount" style="color: var(--warning-color);"></span>
                     </div>
                     <ul class="alert-list" id="octoberPromotionList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -820,6 +820,14 @@
             }
         }
 
+        // 날짜가 같은지 비교 (년, 월, 일만 비교)
+        function isSameDate(date1, date2) {
+            if (!date1 || !date2) return false;
+            return date1.getFullYear() === date2.getFullYear() &&
+                   date1.getMonth() === date2.getMonth() &&
+                   date1.getDate() === date2.getDate();
+        }
+
         // 종료일 가져오기 (재임용종료일 우선, 없으면 최초임용종료일)
         function getEndDate(teacher) {
             const renewalEndDate = parseDate(teacher['재임용종료일']);
@@ -835,9 +843,8 @@
             const endDate = getEndDate(teacher);
             const retirementDate = parseDate(teacher['정년일자']);
             
-            // 정년퇴직 체크
-            if (endDate && retirementDate && 
-                endDate.getTime() === retirementDate.getTime()) {
+            // 정년퇴직 체크 (날짜만 비교)
+            if (isSameDate(endDate, retirementDate)) {
                 return {
                     renewal: null,
                     promotion: null,
@@ -1099,13 +1106,20 @@
             let urgentCases = 0;
 
             facultyData.forEach(teacher => {
-                const endDate = parseDate(teacher['재임용종료일']);
-                const status = getRenewalStatus(endDate, currentBaseDate);
+                const endDate = getEndDate(teacher);
+                const retirementDate = parseDate(teacher['정년일자']);
                 
-                if (status === 'warning') renewalAlerts++;
-                if (status === 'danger') {
-                    renewalAlerts++;
-                    urgentCases++;
+                // 정년퇴직 예정자는 재계약 알림에서 제외
+                const isRetirement = endDate && retirementDate && endDate.getTime() === retirementDate.getTime();
+                
+                if (!isRetirement) {
+                    const status = getRenewalStatus(endDate, currentBaseDate);
+                    
+                    if (status === 'warning') renewalAlerts++;
+                    if (status === 'danger') {
+                        renewalAlerts++;
+                        urgentCases++;
+                    }
                 }
                 
                 if (isPromotionCandidate(teacher, currentBaseDate)) {
@@ -1131,7 +1145,14 @@
             const warningCases = [];
             
             facultyData.forEach(teacher => {
-                const endDate = parseDate(teacher['재임용종료일']);
+                const endDate = getEndDate(teacher);
+                const retirementDate = parseDate(teacher['정년일자']);
+                
+                // 정년퇴직 예정자는 재계약 알림에서 제외
+                if (endDate && retirementDate && endDate.getTime() === retirementDate.getTime()) {
+                    return;
+                }
+                
                 const status = getRenewalStatus(endDate, currentBaseDate);
                 
                 if (status === 'danger') {
@@ -1146,7 +1167,7 @@
                 urgentList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
             } else {
                 urgentCases.forEach(teacher => {
-                    const endDate = parseDate(teacher['재임용종료일']);
+                    const endDate = getEndDate(teacher);
                     const daysLeft = getDaysUntil(endDate, currentBaseDate);
                     
                     const li = document.createElement('li');
@@ -1167,7 +1188,7 @@
                 warningList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
             } else {
                 warningCases.forEach(teacher => {
-                    const endDate = parseDate(teacher['재임용종료일']);
+                    const endDate = getEndDate(teacher);
                     const monthsLeft = getMonthsUntil(endDate, currentBaseDate);
                     
                     const li = document.createElement('li');
@@ -1182,6 +1203,10 @@
                     warningList.appendChild(li);
                 });
             }
+            
+            // 대상자 수 업데이트
+            updateAlertCounts('urgentRenewal', urgentCases.length);
+            updateAlertCounts('warningRenewal', warningCases.length);
         }
 
         // 승진 알림 업데이트 (기준 날짜 기반)
@@ -1229,8 +1254,10 @@
                         aprilList.appendChild(li);
                     });
                 }
+                updateAlertCounts('aprilPromotion', aprilCandidates.length);
             } else {
                 aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (11월-2월)</li>';
+                updateAlertCounts('aprilPromotion', 0);
             }
             
             // 10월 승진 리스트 업데이트
@@ -1252,8 +1279,18 @@
                         octoberList.appendChild(li);
                     });
                 }
+                updateAlertCounts('octoberPromotion', octoberCandidates.length);
             } else {
                 octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (5월-8월)</li>';
+                updateAlertCounts('octoberPromotion', 0);
+            }
+        }
+
+        // 알림 카드 대상자 수 업데이트
+        function updateAlertCounts(cardId, count) {
+            const countElement = document.getElementById(`${cardId}Count`);
+            if (countElement) {
+                countElement.textContent = `(${count}명)`;
             }
         }
 
