@@ -604,7 +604,7 @@
                 <div class="alert-card warning">
                     <div class="alert-title">
                         <span class="alert-icon warning">📋</span>
-                        4월 승진 심사 대상 (2월 말 마감) <span id="aprilPromotionCount" style="color: var(--warning-color);"></span>
+                        다음 학기 4월 승진 대상 (2월 말 마감) <span id="aprilPromotionCount" style="color: var(--warning-color);"></span>
                     </div>
                     <ul class="alert-list" id="aprilPromotionList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -613,7 +613,7 @@
                 <div class="alert-card warning">
                     <div class="alert-title">
                         <span class="alert-icon warning">📋</span>
-                        10월 승진 심사 대상 (8월 말 마감) <span id="octoberPromotionCount" style="color: var(--warning-color);"></span>
+                        다음 학기 10월 승진 대상 (8월 말 마감) <span id="octoberPromotionCount" style="color: var(--warning-color);"></span>
                     </div>
                     <ul class="alert-list" id="octoberPromotionList">
                         <li class="loading">데이터를 불러오는 중...</li>
@@ -1146,7 +1146,8 @@
                     }
                 }
                 
-                if (isPromotionCandidate(teacher, currentBaseDate)) {
+                // 다음 학기 승진 대상자인지 확인
+                if (isNextSemesterPromotionCandidate(teacher, currentBaseDate)) {
                     promotionAlerts++;
                 }
             });
@@ -1233,7 +1234,7 @@
             updateAlertCounts('warningRenewal', warningCases.length);
         }
 
-        // 승진 알림 업데이트 (기준 날짜 기반)
+        // 승진 알림 업데이트 (다음 학기 기준)
         function updatePromotionAlerts() {
             const aprilList = document.getElementById('aprilPromotionList');
             const octoberList = document.getElementById('octoberPromotionList');
@@ -1243,54 +1244,21 @@
             
             const currentPeriod = getPromotionPeriod(currentBaseDate);
             const promotionDeadlineDays = getDaysUntilPromotionDeadline(currentBaseDate);
+            const nextPromotionDate = getNextSemesterPromotionDate(currentBaseDate);
             
-            // 승진 가능한 교원들을 찾기
+            // 다음 학기 승진 가능한 교원들을 찾기
             const promotionCandidates = facultyData.filter(teacher => 
-                isPromotionCandidate(teacher, currentBaseDate)
+                isNextSemesterPromotionCandidate(teacher, currentBaseDate)
             );
             
-            // 4월 승진 대상 (11월-2월 기간)
-            const aprilCandidates = [];
-            const octoberCandidates = [];
-            
-            if (currentPeriod === 'april') {
-                promotionCandidates.forEach(teacher => aprilCandidates.push(teacher));
-            } else if (currentPeriod === 'october') {
-                promotionCandidates.forEach(teacher => octoberCandidates.push(teacher));
-            }
-            
-            // 4월 승진 리스트 업데이트
-            if (currentPeriod === 'april') {
-                if (aprilCandidates.length === 0) {
-                    aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
-                } else {
-                    aprilCandidates.forEach(teacher => {
-                        const yearsOfService = Math.floor((currentBaseDate - parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'))) / (1000 * 60 * 60 * 24 * 365));
-                        const li = document.createElement('li');
-                        li.className = 'alert-item';
-                        li.innerHTML = `
-                            <div class="teacher-info">
-                                <div class="teacher-name">${teacher['성명']}</div>
-                                <div class="teacher-details">${teacher['소속']} • ${teacher['직급']} • ${yearsOfService}년 근무</div>
-                            </div>
-                            <div class="date-badge">${promotionDeadlineDays > 0 ? promotionDeadlineDays + '일 남음' : '마감'}</div>
-                        `;
-                        aprilList.appendChild(li);
-                    });
-                }
-                updateAlertCounts('aprilPromotion', aprilCandidates.length);
-            } else {
-                aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (11월-2월)</li>';
-                updateAlertCounts('aprilPromotion', 0);
-            }
-            
-            // 10월 승진 리스트 업데이트
+            // 10월 승진 대상 (1학기 중, 3-8월)
             if (currentPeriod === 'october') {
-                if (octoberCandidates.length === 0) {
+                if (promotionCandidates.length === 0) {
                     octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
                 } else {
-                    octoberCandidates.forEach(teacher => {
-                        const yearsOfService = Math.floor((currentBaseDate - parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'))) / (1000 * 60 * 60 * 24 * 365));
+                    promotionCandidates.forEach(teacher => {
+                        const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
+                        const yearsOfService = Math.floor((currentBaseDate - firstAppointment) / (1000 * 60 * 60 * 24 * 365));
                         const li = document.createElement('li');
                         li.className = 'alert-item';
                         li.innerHTML = `
@@ -1303,9 +1271,34 @@
                         octoberList.appendChild(li);
                     });
                 }
-                updateAlertCounts('octoberPromotion', octoberCandidates.length);
-            } else {
-                octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (5월-8월)</li>';
+                updateAlertCounts('octoberPromotion', promotionCandidates.length);
+                
+                aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (2학기: 9월-2월)</li>';
+                updateAlertCounts('aprilPromotion', 0);
+            }
+            // 4월 승진 대상 (2학기 중, 9-2월)
+            else if (currentPeriod === 'april') {
+                if (promotionCandidates.length === 0) {
+                    aprilList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">해당 사항 없음</li>';
+                } else {
+                    promotionCandidates.forEach(teacher => {
+                        const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
+                        const yearsOfService = Math.floor((currentBaseDate - firstAppointment) / (1000 * 60 * 60 * 24 * 365));
+                        const li = document.createElement('li');
+                        li.className = 'alert-item';
+                        li.innerHTML = `
+                            <div class="teacher-info">
+                                <div class="teacher-name">${teacher['성명']}</div>
+                                <div class="teacher-details">${teacher['소속']} • ${teacher['직급']} • ${yearsOfService}년 근무</div>
+                            </div>
+                            <div class="date-badge">${promotionDeadlineDays > 0 ? promotionDeadlineDays + '일 남음' : '마감'}</div>
+                        `;
+                        aprilList.appendChild(li);
+                    });
+                }
+                updateAlertCounts('aprilPromotion', promotionCandidates.length);
+                
+                octoberList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-secondary);">현재 기간이 아님 (1학기: 3월-8월)</li>';
                 updateAlertCounts('octoberPromotion', 0);
             }
         }
