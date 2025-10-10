@@ -1200,10 +1200,41 @@
 
         // 대시보드 업데이트
         function updateDashboard() {
-            updateStats();
-            updateRenewalAlerts();
-            updatePromotionAlerts();
-            updateFacultyTable();
+            console.log('\n=== 대시보드 업데이트 시작 ===');
+            
+            try {
+                console.log('1. 통계 업데이트 시작...');
+                updateStats();
+                console.log('1. 통계 업데이트 완료 ✓');
+            } catch (error) {
+                console.error('통계 업데이트 중 오류:', error);
+            }
+            
+            try {
+                console.log('2. 재계약 알림 업데이트 시작...');
+                updateRenewalAlerts();
+                console.log('2. 재계약 알림 업데이트 완료 ✓');
+            } catch (error) {
+                console.error('재계약 알림 업데이트 중 오류:', error);
+            }
+            
+            try {
+                console.log('3. 승진 알림 업데이트 시작...');
+                updatePromotionAlerts();
+                console.log('3. 승진 알림 업데이트 완료 ✓');
+            } catch (error) {
+                console.error('승진 알림 업데이트 중 오류:', error);
+            }
+            
+            try {
+                console.log('4. 교원 테이블 업데이트 시작...');
+                updateFacultyTable();
+                console.log('4. 교원 테이블 업데이트 완료 ✓');
+            } catch (error) {
+                console.error('교원 테이블 업데이트 중 오류:', error);
+            }
+            
+            console.log('=== 대시보드 업데이트 완료 ===\n');
         }
 
         // 통계 업데이트 (기준 날짜 기반)
