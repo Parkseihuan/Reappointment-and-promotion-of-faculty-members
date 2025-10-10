@@ -764,23 +764,47 @@
             return 'normal';
         }
 
-        // 승진 대상 판정 (기준 날짜 기반)
+        // 승진 대상 판정 (기준 날짜 기반) - 수정됨
         function isPromotionCandidate(teacher, baseDate = currentBaseDate) {
             const rank = teacher['직급'];
             const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
             
-            if (!firstAppointment) return null;
+            if (!firstAppointment || !rank) return null;
             
-            const yearsOfService = (baseDate - firstAppointment) / (1000 * 60 * 60 * 24 * 365);
+            // 비정년트랙은 승진 대상 아님
+            if (rank.includes('비정년')) return null;
             
-            // 조교수 -> 부교수 승진 (6년 이상 근무)
-            if (rank && rank.includes('조교수') && yearsOfService >= 6) {
-                return 'assistant_to_associate';
+            // 조교수 -> 부교수 승진 (전임교원 최초임용일 + 6년)
+            if (rank.includes('조교수')) {
+                const promotionEligibleDate = new Date(firstAppointment);
+                promotionEligibleDate.setFullYear(promotionEligibleDate.getFullYear() + 6);
+                
+                // 승진 자격 날짜를 4월 1일 또는 10월 1일로 조정
+                const adjustedDate = adjustPromotionDate(promotionEligibleDate);
+                
+                // 기준 날짜가 승진 자격 날짜 이후인 경우에만 승진 대상
+                if (baseDate >= adjustedDate) {
+                    return 'assistant_to_associate';
+                }
             }
             
-            // 부교수 -> 교수 승진 (7년 이상 근무)
-            if (rank && rank.includes('부교수') && !rank.includes('비정년') && yearsOfService >= 7) {
-                return 'associate_to_full';
+            // 부교수 -> 교수 승진 (현직급승인일 또는 전임교원최초임용일 + 7년)
+            if (rank.includes('부교수')) {
+                const currentRankDate = parseDate(getTeacherValue(teacher, '현직급\n승인일'));
+                const basePromotionDate = currentRankDate || firstAppointment;
+                
+                if (basePromotionDate) {
+                    const promotionEligibleDate = new Date(basePromotionDate);
+                    promotionEligibleDate.setFullYear(promotionEligibleDate.getFullYear() + 7);
+                    
+                    // 승진 자격 날짜를 4월 1일 또는 10월 1일로 조정
+                    const adjustedDate = adjustPromotionDate(promotionEligibleDate);
+                    
+                    // 기준 날짜가 승진 자격 날짜 이후인 경우에만 승진 대상
+                    if (baseDate >= adjustedDate) {
+                        return 'associate_to_full';
+                    }
+                }
             }
             
             return null;
@@ -1109,8 +1133,8 @@
                 const endDate = getEndDate(teacher);
                 const retirementDate = parseDate(teacher['정년일자']);
                 
-                // 정년퇴직 예정자는 재계약 알림에서 제외
-                const isRetirement = endDate && retirementDate && endDate.getTime() === retirementDate.getTime();
+                // 정년퇴직 예정자는 재계약 알림에서 제외 (날짜만 비교)
+                const isRetirement = isSameDate(endDate, retirementDate);
                 
                 if (!isRetirement) {
                     const status = getRenewalStatus(endDate, currentBaseDate);
@@ -1148,8 +1172,8 @@
                 const endDate = getEndDate(teacher);
                 const retirementDate = parseDate(teacher['정년일자']);
                 
-                // 정년퇴직 예정자는 재계약 알림에서 제외
-                if (endDate && retirementDate && endDate.getTime() === retirementDate.getTime()) {
+                // 정년퇴직 예정자는 재계약 알림에서 제외 (날짜만 비교)
+                if (isSameDate(endDate, retirementDate)) {
                     return;
                 }
                 
