@@ -824,7 +824,7 @@
             }
         }
 
-        // 다음 학기 승진 대상자 판정
+        // 다음 학기 승진 대상자 판정 (getNextReviewInfo와 로직 일치)
         function isNextSemesterPromotionCandidate(teacher, baseDate = currentBaseDate) {
             const rank = teacher['직급'];
             const firstAppointment = parseDate(getTeacherValue(teacher, '전임교원\n최초임용일'));
@@ -834,12 +834,21 @@
             
             const nextPromotionDate = getNextSemesterPromotionDate(baseDate);
             
+            // 조교수 -> 부교수 승진
             if (rank.includes('조교수')) {
                 const promotionEligibleDate = new Date(firstAppointment);
                 promotionEligibleDate.setFullYear(promotionEligibleDate.getFullYear() + 6);
-                return nextPromotionDate >= promotionEligibleDate;
+                
+                // 자격일이 기준 날짜 이후인 경우만 (미래의 승진)
+                if (promotionEligibleDate >= baseDate) {
+                    // 자격일을 4월/10월로 조정
+                    const adjustedDate = adjustPromotionDate(promotionEligibleDate);
+                    // 조정된 날짜가 다음 학기 승진일과 같으면 대상자
+                    return isSameDate(adjustedDate, nextPromotionDate);
+                }
             }
             
+            // 부교수 -> 교수 승진
             if (rank.includes('부교수') && !rank.includes('조')) {
                 const currentRankDate = parseDate(getTeacherValue(teacher, '현직급\n승인일'));
                 const basePromotionDate = currentRankDate || firstAppointment;
@@ -847,7 +856,14 @@
                 if (basePromotionDate) {
                     const promotionEligibleDate = new Date(basePromotionDate);
                     promotionEligibleDate.setFullYear(promotionEligibleDate.getFullYear() + 7);
-                    return nextPromotionDate >= promotionEligibleDate;
+                    
+                    // 자격일이 기준 날짜 이후인 경우만 (미래의 승진)
+                    if (promotionEligibleDate >= baseDate) {
+                        // 자격일을 4월/10월로 조정
+                        const adjustedDate = adjustPromotionDate(promotionEligibleDate);
+                        // 조정된 날짜가 다음 학기 승진일과 같으면 대상자
+                        return isSameDate(adjustedDate, nextPromotionDate);
+                    }
                 }
             }
             
